@@ -48,9 +48,3 @@ def transform_data():
     df.drop(df[df['ppp_todollar'] == 0.0].index, inplace = True)
     #save to excel
     df.to_excel('/Users/mikel/Documents/Projects/chameleon-pricing/DB.xlsx', index=False)
-
-def get_eur():
-    conversion=convert('usd', 'eur', 1)
-    result = json.loads(conversion)
-    usd_eur.eur[0] = result['amount']
-    
