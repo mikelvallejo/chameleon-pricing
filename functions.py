@@ -1,11 +1,19 @@
+import pandas as pd
+import numpy as np
+import json
+import time
+from google_currency import convert 
+
 def extract_data():
-    #read data and drop nulls
+    #upload the world bank data
     twb_data = pd.read_csv('/Users/mikel/Documents/Projects/chameleon-pricing/twb_data.csv', sep=",", skiprows=3)
     twb_data=twb_data.drop(columns=['Unnamed: 65', 'Indicator Name', 'Indicator Code'])
     twb_data=twb_data.dropna(axis=1,how='all')
-    #get last ppp_value
+    #get last ppp value and create a new column
     twb_data['last_value'] = twb_data.ffill(axis=1).iloc[:, -1] 
+    #delete rows with all null values in numeric columns
     twb_data=twb_data[pd.to_numeric(twb_data['last_value'], errors='coerce').notnull()]
+    #create a new dataframe with this 2 columns
     df1=twb_data[['Country Name', 'last_value']]
     df1=df1.rename(columns={'Country Name' : 'Country'})
     #get currency codes
@@ -18,33 +26,33 @@ def extract_data():
     #merge dataframes
     country_currency=df1.merge(currency, left_on='Country', right_on='Entity')
     country_currency=country_currency[['Country', 'last_value', 'Currency', 'Code']]
-    #save to csv
+    #save to csv country_currency
     country_currency.to_csv('/Users/mikel/Documents/Projects/chameleon-pricing/country_currency.csv', index=False)
 
 def transform_data():
+    #read previous csv
     df=pd.read_csv('/Users/mikel/Documents/Projects/chameleon-pricing/country_currency.csv')
-    #function, adapt ppp to dollar
+    #change ppp values to the same currency, dollar
     def ppp_to_dollar(Code, last_value):
-        # cambiar a dollares y aplicar ppp
         conversion=convert(Code, 'usd', last_value)
         result = json.loads(conversion)
-        # la salida en euros
         return result['amount']
-    #function, adapt ppp to spain
-    def ppp_to_spain(ppp_to_dollar):
-        return round(ppp_to_dollar*1.315, 2)
-    #get conversions and add to a column
-    apply = df.apply(
-         lambda x: ppp_to_dollar(x['Code'], x['last_value']),
-         axis=1)
+    apply = df.apply(lambda x: ppp_to_dollar(x['Code'], x['last_value']),axis=1)
     df['ppp_todollar']  = apply
-    #get adapted ppp for spain and add to a column
-    apply = df.apply(
-        lambda x: ppp_to_spain(x['ppp_todollar']),
-        axis=1)
-    df['ppp_spain']  = apply
     df["ppp_todollar"] = df.ppp_todollar.astype(float)
-    #drop not converted ones
+    #adapt previous value to spain
+    adjustment=1/(df.ppp_todollar[df.Country == 'spain'])
+    def ppp_to_spain(ppp_to_dollar):
+        return round(ppp_to_dollar*adjustment, 2)
+    apply = df.apply(lambda x: ppp_to_spain(x['ppp_todollar']), axis=1)
+    df['ppp_spain']  = apply
+    df["ppp_spain"] = df.ppp_spain.astype(float)
+    #fix Germany
+    df.ppp_todollar[df.Country == 'germany']=ppp_to_dollar('EUR', 0.733679)
+    df.ppp_spain[df.Country == 'germany']=ppp_to_spain(0.87)
+    #drop null columns
     df.drop(df[df['ppp_todollar'] == 0.0].index, inplace = True)
-    #save to excel
+    #save to excel DB
     df.to_excel('/Users/mikel/Documents/Projects/chameleon-pricing/DB.xlsx', index=False)
+
+    
