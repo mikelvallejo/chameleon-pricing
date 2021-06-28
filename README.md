@@ -5,7 +5,7 @@ Chameleon is a price recommender system for Software companies that consist in 3
 
  - Adapted price calculation
  - Expansion map
- - Adapted price forecasting for the next 3 years
+ - Adapted price forecasting for the next 3 years (based on machine learning)
 
  
 Check out the dashboard:
